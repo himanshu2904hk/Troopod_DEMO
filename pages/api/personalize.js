@@ -80,7 +80,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'meta/llama-3.1-405b-instruct',
+        model: 'meta/llama-3.3-70b-instruct',
         max_tokens: 4096,
         temperature: 0.7,
         messages: [{
