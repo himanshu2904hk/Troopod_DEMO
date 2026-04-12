@@ -10,65 +10,42 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing fields' });
   }
 
-  const imagePool = {
-    food: [
-      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1600&q=80',
-      'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1600&q=80',
-      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1600&q=80',
-    ],
-    fitness: [
-      'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1600&q=80',
-      'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1600&q=80',
-    ],
-    tech: [
-      'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&q=80',
-    ],
-    fashion: [
-      'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1600&q=80',
-    ],
-    default: [
-      'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1600&q=80',
-    ]
-  };
-
-  const adLower = ad_description.toLowerCase();
-  let category = 'default';
-  if (adLower.match(/food|eat|hungry|restaurant|delivery|biryani|pizza|burger|chef|cuisine|zomato|swiggy/)) category = 'food';
-  else if (adLower.match(/fitness|gym|run|sport|athlete|nike|workout/)) category = 'fitness';
-  else if (adLower.match(/tech|software|app|digital|saas/)) category = 'tech';
-  else if (adLower.match(/fashion|clothes|wear|style/)) category = 'fashion';
-
-  const images = imagePool[category];
-  const heroImage = images[Math.floor(Math.random() * images.length)];
-
-  let landingPageContent = '';
+  // Step 1: Fetch the actual landing page
+  let originalHtml = '';
   let fetchSuccess = false;
+  let textContent = '';
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const lpRes = await fetch(landing_page_url, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'en-US,en;q=0.9',
       }
     });
     clearTimeout(timeout);
-    const html = await lpRes.text();
+    originalHtml = await lpRes.text();
     fetchSuccess = true;
-    landingPageContent = html
+
+    // Extract readable text
+    textContent = originalHtml
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 3000);
+      .slice(0, 4000);
+
   } catch (e) {
+    fetchSuccess = false;
     try {
       const domain = new URL(landing_page_url).hostname.replace('www.', '');
-      landingPageContent = `Domain: ${domain}. Infer typical landing page content.`;
+      textContent = `Could not fetch page. Domain: ${domain}. Generate a realistic mockup of this brand's landing page.`;
     } catch {
-      landingPageContent = `URL: ${landing_page_url}.`;
+      textContent = `Could not fetch. URL: ${landing_page_url}`;
     }
   }
 
@@ -82,37 +59,74 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'meta/llama-3.3-70b-instruct',
         max_tokens: 4096,
-        temperature: 0.7,
+        temperature: 0.4,
         messages: [{
           role: 'user',
-          content: `You are an expert CRO specialist, UI designer and copywriter. Personalize an existing landing page to match an ad creative.
+          content: `You are a CRO (Conversion Rate Optimization) expert. Your job is to personalize an existing landing page by modifying ONLY its copy to match an ad creative.
 
-Ad description: ${ad_description}
+Ad creative description: ${ad_description}
+
 Landing page URL: ${landing_page_url}
-Landing page content: ${landingPageContent}
-Hero background image URL (USE THIS EXACT URL): ${heroImage}
+Page successfully fetched: ${fetchSuccess}
+Existing page text content: ${textContent}
 
-Generate a STUNNING personalized HTML landing page that:
-1. Looks like the REAL existing page but with personalized copy matching the ad
-2. Uses this EXACT hero image: ${heroImage}
-3. Has a fixed navbar with logo and CTA button
-4. Has a full-screen hero (min-height: 100vh) with the image as background, dark overlay, huge headline (font-size: 72px, font-weight: 900), subheadline, and 2 CTA buttons
-5. Has a stats strip with 3-4 impressive numbers
-6. Has 3 feature cards with emoji icons, hover effects (transform: translateY(-8px))
-7. Has a testimonials section with 2 customer quotes and star ratings
-8. Has a final CTA banner section
-9. Has a footer with brand name and tagline
-10. Uses Google Fonts Inter: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
-11. All inline CSS, professional colors matching the ad brand
-12. Mobile responsive
+${fetchSuccess ? `
+TASK: The page was fetched successfully. 
+1. Analyze the ad creative — extract: headline, tone, CTA, audience, key message, brand colors
+2. Identify the key copy elements on the existing page
+3. Rewrite ONLY the text content to match the ad messaging using CRO best practices:
+   - Message match: hero headline should mirror the ad headline
+   - Same value proposition but in the ad's tone
+   - Keep CTAs action-oriented matching the ad's CTA
+   - Preserve trust signals but reframe them in the ad's voice
+4. Return the COMPLETE modified HTML — same layout, same CSS, same images — ONLY text changed
 
-Respond ONLY with valid JSON, no markdown fences:
+Return the full modified HTML page.` : `
+TASK: The page could not be fetched (blocked scraping).
+1. Analyze the ad creative
+2. Create a HIGH-FIDELITY mockup of what this brand's landing page likely looks like
+3. Then personalize it to match the ad creative
+4. Make it look professional and realistic
+
+Generate a complete beautiful HTML page with:
+- Fixed navbar with brand logo and CTA
+- Full-screen hero with relevant background, huge headline, subheadline, 2 CTA buttons  
+- Stats strip with impressive numbers
+- 3 feature cards with emoji icons and hover effects
+- Testimonials section
+- Final CTA banner
+- Footer
+- Google Fonts Inter
+- All inline CSS, brand colors matching the ad`}
+
+Respond ONLY with valid JSON, no markdown:
 {
-  "ad_analysis": { "headline": "...", "tone": "...", "cta": "...", "audience": "...", "key_message": "..." },
-  "original_copy": { "hero_headline": "...", "hero_sub": "...", "cta": "...", "feature_1": "...", "feature_2": "...", "feature_3": "..." },
-  "personalized_copy": { "hero_headline": "...", "hero_sub": "...", "cta": "...", "feature_1": "...", "feature_2": "...", "feature_3": "..." },
-  "personalized_html": "<!DOCTYPE html><html lang='en'>...</html>",
-  "changes": ["change 1", "change 2", "change 3", "change 4", "change 5"]
+  "ad_analysis": {
+    "headline": "...",
+    "tone": "...", 
+    "cta": "...",
+    "audience": "...",
+    "key_message": "..."
+  },
+  "original_copy": {
+    "hero_headline": "...",
+    "hero_sub": "...",
+    "cta": "...",
+    "feature_1": "...",
+    "feature_2": "...",
+    "feature_3": "..."
+  },
+  "personalized_copy": {
+    "hero_headline": "...",
+    "hero_sub": "...",
+    "cta": "...",
+    "feature_1": "...",
+    "feature_2": "...",
+    "feature_3": "..."
+  },
+  "personalized_html": "<!DOCTYPE html>...",
+  "changes": ["CRO change 1", "CRO change 2", "CRO change 3", "CRO change 4", "CRO change 5"],
+  "fetch_success": ${fetchSuccess}
 }`
         }]
       })
