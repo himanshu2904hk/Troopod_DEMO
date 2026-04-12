@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing fields' });
   }
 
-  // Step 1: Fetch the actual landing page
+  // Step 1: Fetch the real landing page
   let originalHtml = '';
   let fetchSuccess = false;
   let textContent = '';
@@ -30,26 +30,93 @@ export default async function handler(req, res) {
     originalHtml = await lpRes.text();
     fetchSuccess = true;
 
-    // Extract readable text
+    // Fix relative URLs to absolute so images/styles load
+    const baseUrl = new URL(landing_page_url).origin;
+    originalHtml = originalHtml
+      .replace(/href="\//g, `href="${baseUrl}/`)
+      .replace(/src="\//g, `src="${baseUrl}/`)
+      .replace(/href='\//g, `href='${baseUrl}/`)
+      .replace(/src='\//g, `src='${baseUrl}/`)
+      .replace(/url\(\//g, `url(${baseUrl}/`);
+
+    // Extract readable text for AI context
     textContent = originalHtml
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 4000);
+      .slice(0, 3000);
 
   } catch (e) {
     fetchSuccess = false;
     try {
       const domain = new URL(landing_page_url).hostname.replace('www.', '');
-      textContent = `Could not fetch page. Domain: ${domain}. Generate a realistic mockup of this brand's landing page.`;
+      textContent = `Domain: ${domain}. Page blocked scraping.`;
     } catch {
-      textContent = `Could not fetch. URL: ${landing_page_url}`;
+      textContent = `URL: ${landing_page_url}`;
     }
   }
 
   try {
+    let prompt = '';
+
+    if (fetchSuccess && originalHtml.length > 500) {
+      // We have the real HTML — ask AI to modify ONLY text
+      const htmlSlice = originalHtml
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .slice(0, 8000);
+
+      prompt = `You are a CRO expert. Personalize this REAL landing page by modifying ONLY its text content to match an ad creative.
+
+Ad creative: ${ad_description}
+
+EXISTING PAGE TEXT CONTENT:
+${textContent}
+
+RULES - STRICTLY FOLLOW:
+1. Keep ALL HTML structure, CSS, classes, IDs, images, layout 100% identical
+2. Only change TEXT inside these tags: h1, h2, h3, h4, p, button, a, span, li, label
+3. Do NOT change any attributes, classes, styles, src, href values
+4. Make the text match the ad's tone, headline, CTA, and messaging
+5. Use CRO best practices: message match, urgency, benefit-focused copy
+6. The output page must look IDENTICAL to the original — same design, same layout
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "ad_analysis": { "headline": "...", "tone": "...", "cta": "...", "audience": "...", "key_message": "..." },
+  "original_copy": { "hero_headline": "...", "hero_sub": "...", "cta": "...", "feature_1": "...", "feature_2": "...", "feature_3": "..." },
+  "personalized_copy": { "hero_headline": "...", "hero_sub": "...", "cta": "...", "feature_1": "...", "feature_2": "...", "feature_3": "..." },
+  "personalized_html": "[THE COMPLETE MODIFIED HTML WITH ONLY TEXT CHANGED]",
+  "changes": ["CRO change 1", "CRO change 2", "CRO change 3", "CRO change 4", "CRO change 5"]
+}`;
+    } else {
+      // Page blocked — generate realistic mockup then personalize
+      prompt = `You are a CRO expert and UI designer. The landing page at ${landing_page_url} blocked scraping.
+
+Ad creative: ${ad_description}
+
+Since the page blocked scraping, do this:
+1. Create a HIGH-FIDELITY mockup of what ${landing_page_url}'s landing page looks like (based on your knowledge of the brand)
+2. Then personalize the copy to match the ad creative using CRO principles
+3. Keep the brand's colors, fonts, and style — just change the copy
+
+Generate a complete, beautiful, professional HTML page that:
+- Looks like the REAL brand's page
+- Has navbar, hero, features, testimonials, CTA, footer
+- Uses the brand's actual color scheme
+- Has personalized copy matching the ad
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "ad_analysis": { "headline": "...", "tone": "...", "cta": "...", "audience": "...", "key_message": "..." },
+  "original_copy": { "hero_headline": "...", "hero_sub": "...", "cta": "...", "feature_1": "...", "feature_2": "...", "feature_3": "..." },
+  "personalized_copy": { "hero_headline": "...", "hero_sub": "...", "cta": "...", "feature_1": "...", "feature_2": "...", "feature_3": "..." },
+  "personalized_html": "[COMPLETE HTML]",
+  "changes": ["CRO change 1", "CRO change 2", "CRO change 3", "CRO change 4", "CRO change 5"]
+}`;
+    }
+
     const nvidiaRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -60,75 +127,7 @@ export default async function handler(req, res) {
         model: 'meta/llama-3.3-70b-instruct',
         max_tokens: 4096,
         temperature: 0.4,
-        messages: [{
-          role: 'user',
-          content: `You are a CRO (Conversion Rate Optimization) expert. Your job is to personalize an existing landing page by modifying ONLY its copy to match an ad creative.
-
-Ad creative description: ${ad_description}
-
-Landing page URL: ${landing_page_url}
-Page successfully fetched: ${fetchSuccess}
-Existing page text content: ${textContent}
-
-${fetchSuccess ? `
-TASK: The page was fetched successfully. 
-1. Analyze the ad creative — extract: headline, tone, CTA, audience, key message, brand colors
-2. Identify the key copy elements on the existing page
-3. Rewrite ONLY the text content to match the ad messaging using CRO best practices:
-   - Message match: hero headline should mirror the ad headline
-   - Same value proposition but in the ad's tone
-   - Keep CTAs action-oriented matching the ad's CTA
-   - Preserve trust signals but reframe them in the ad's voice
-4. Return the COMPLETE modified HTML — same layout, same CSS, same images — ONLY text changed
-
-Return the full modified HTML page.` : `
-TASK: The page could not be fetched (blocked scraping).
-1. Analyze the ad creative
-2. Create a HIGH-FIDELITY mockup of what this brand's landing page likely looks like
-3. Then personalize it to match the ad creative
-4. Make it look professional and realistic
-
-Generate a complete beautiful HTML page with:
-- Fixed navbar with brand logo and CTA
-- Full-screen hero with relevant background, huge headline, subheadline, 2 CTA buttons  
-- Stats strip with impressive numbers
-- 3 feature cards with emoji icons and hover effects
-- Testimonials section
-- Final CTA banner
-- Footer
-- Google Fonts Inter
-- All inline CSS, brand colors matching the ad`}
-
-Respond ONLY with valid JSON, no markdown:
-{
-  "ad_analysis": {
-    "headline": "...",
-    "tone": "...", 
-    "cta": "...",
-    "audience": "...",
-    "key_message": "..."
-  },
-  "original_copy": {
-    "hero_headline": "...",
-    "hero_sub": "...",
-    "cta": "...",
-    "feature_1": "...",
-    "feature_2": "...",
-    "feature_3": "..."
-  },
-  "personalized_copy": {
-    "hero_headline": "...",
-    "hero_sub": "...",
-    "cta": "...",
-    "feature_1": "...",
-    "feature_2": "...",
-    "feature_3": "..."
-  },
-  "personalized_html": "<!DOCTYPE html>...",
-  "changes": ["CRO change 1", "CRO change 2", "CRO change 3", "CRO change 4", "CRO change 5"],
-  "fetch_success": ${fetchSuccess}
-}`
-        }]
+        messages: [{ role: 'user', content: prompt }]
       })
     });
 
