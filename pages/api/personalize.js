@@ -53,6 +53,99 @@ function extractPageSignals(html) {
   if (isEmpty) return 'Page signals are empty — this is likely a SPA that renders client-side. Infer content from the URL/domain only.';
   return signals;
 }
+// Enhance the REAL fetched page by injecting personalized copy
+function enhanceRealPage(html, copy, baseUrl) {
+  let enhanced = html;
+
+  // Bug 3 fix: sanitize all copy values before injecting into real HTML
+  const sc = (v, fallback = '') => {
+    if (typeof v !== 'string') return fallback;
+    return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+  };
+
+  const headline = sc(copy.hero_headline);
+  const sub = sc(copy.hero_sub);
+  const tagline = sc(copy.tagline);
+  const cta = sc(copy.cta);
+  const brandName = sc(copy.brand_name);
+
+  // Step 1: Add <base> tag to fix ALL relative URLs in one line
+  enhanced = enhanced.replace(
+    /<head([^>]*)>/i,
+    `<head$1><base href="${baseUrl}/">`
+  );
+
+  // Step 2: Fix remaining relative URLs explicitly
+  enhanced = enhanced
+    .replace(/src="\//g, `src="${baseUrl}/`)
+    .replace(/href="\//g, `href="${baseUrl}/`)
+    .replace(/src='\//g, `src='${baseUrl}/`)
+    .replace(/href='\//g, `href='${baseUrl}/`)
+    .replace(/url\(\/g, `url(${baseUrl}/`);
+
+  // Step 3: Update <title>
+  enhanced = enhanced.replace(
+    /<title[^>]*>[\s\S]*?<\/title>/i,
+    `<title>${brandName || 'Personalized Page'}</title>`
+  );
+
+  // Step 4: Update meta description
+  enhanced = enhanced.replace(
+    /<meta[^>]*name=["']description["'][^>]*>/i,
+    `<meta name="description" content="${tagline || sub || ''}">`
+  );
+
+  // Step 5: Replace first <h1> content
+  enhanced = enhanced.replace(
+    /(<h1[^>]*>)([\s\S]*?)(<\/h1>)/i,
+    `$1${headline || ''}$3`
+  );
+
+  // Step 6: Replace first 2 <h2> contents
+  let h2Count = 0;
+  enhanced = enhanced.replace(
+    /(<h2[^>]*>)([\s\S]*?)(<\/h2>)/gi,
+    (match, open, inner, close) => {
+      h2Count++;
+      if (h2Count === 1) return `${open}${sub || inner}${close}`;
+      if (h2Count === 2) return `${open}${tagline || inner}${close}`;
+      return match;
+    }
+  );
+
+  // Step 7: Replace CTA buttons — look for common CTA patterns
+  if (cta) {
+    // Replace first <button> that looks like a CTA
+    let btnCount = 0;
+    enhanced = enhanced.replace(
+      /(<button[^>]*>)([\s\S]*?)(<\/button>)/gi,
+      (match, open, inner, close) => {
+        if (btnCount === 0 && inner.trim().length < 50) {
+          btnCount++;
+          return `${open}${cta}${close}`;
+        }
+        return match;
+      }
+    );
+
+    // Also replace first <a> that has CTA-like classes
+    enhanced = enhanced.replace(
+      /(<a[^>]*(?:btn|cta|button|primary)[^>]*>)([\s\S]*?)(<\/a>)/i,
+      `$1${cta}$3`
+    );
+  }
+
+  // Step 8: Add personalization banner
+  const banner = `<div style="position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#7F77DD;color:white;text-align:center;padding:10px 16px;font-family:sans-serif;font-size:13px;font-weight:500;">
+    ✨ Personalized by Troopod AI — copy rewritten to match your ad creative
+    <span style="margin-left:16px;opacity:0.8;font-size:11px;">Original: ${baseUrl}</span>
+  </div>`;
+  enhanced = enhanced.replace('</body>', `${banner}</body>`);
+
+  return enhanced;
+}
+
+
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -91,6 +184,8 @@ export default async function handler(req, res) {
   let pageSignals = '';
   let fetchSuccess = false;
 
+  let rawHtml = '';
+
   const fetchPage = async () => {
     try {
       const controller = new AbortController();
@@ -102,6 +197,7 @@ export default async function handler(req, res) {
       clearTimeout(timeout);
       const html = await lpRes.text();
       fetchSuccess = true;
+      rawHtml = html; // Store raw HTML for enhancement
       return extractPageSignals(html);
     } catch(e) {
       try { const domain = new URL(landing_page_url).hostname.replace('www.',''); return `Brand: ${domain}`; } catch { return landing_page_url; }
@@ -356,13 +452,27 @@ footer{background:#111;color:white;padding:48px;text-align:center}.footer-logo{f
 </body>
 </html>`;
 
+    // Use real page enhancement if we got actual HTML content
+    let finalHtml = personalizedHtml;
+    let enhanced = false;
+
+    if (fetchSuccess && rawHtml && rawHtml.length > 500) {
+      // Bug 1 fix: reuse existing pageSignals instead of calling extractPageSignals again
+      const isSPA = pageSignals.includes('Page signals are empty');
+      if (!isSPA) {
+        finalHtml = enhanceRealPage(rawHtml, p, new URL(landing_page_url).origin);
+        enhanced = true;
+      }
+    }
+
     return res.status(200).json({
       ad_analysis: adAnalysis,
       original_copy: copyData.original_copy,
       personalized_copy: copyData.personalized_copy,
-      personalized_html: personalizedHtml,
+      personalized_html: finalHtml,
       changes: copyData.changes,
       fetch_success: fetchSuccess,
+      enhanced,
       category
     });
 
