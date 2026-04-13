@@ -238,7 +238,10 @@ export default async function handler(req, res) {
 
     if (fetchSuccess && rawHtml && rawHtml.length > 500) {
       const isSPA = pageSignals.includes('Page signals empty');
-      if (!isSPA) {
+      // Also check if there is meaningful text content in the HTML
+      const textContent = rawHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      const hasContent = textContent.length > 1000;
+      if (!isSPA && hasContent) {
         try {
           finalHtml = enhanceRealPage(rawHtml, p, new URL(landing_page_url).origin);
           enhanced = true;
