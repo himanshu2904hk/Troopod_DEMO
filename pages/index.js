@@ -4,21 +4,18 @@ import styles from '../styles/Home.module.css';
 
 export default function Home() {
   const [adDesc, setAdDesc] = useState('');
-  const [adImageUrl, setAdImageUrl] = useState('');
   const [lpUrl, setLpUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
-  const [imageError, setImageError] = useState(false);
-  const [activeTab, setActiveTab] = useState('describe');
 
   const steps = ['Fetching landing page...', 'Analyzing ad creative...', 'Applying CRO personalization...', 'Building personalized page...'];
 
   async function generate() {
     setError('');
     setResult(null);
-    if (!adDesc.trim() && !adImageUrl.trim()) { setError('Please describe your ad or paste an image URL.'); return; }
+    if (!adDesc.trim()) { setError('Please describe your ad creative.'); return; }
     if (!lpUrl.trim()) { setError('Please enter a landing page URL.'); return; }
     try { new URL(lpUrl); } catch { setError('Please enter a valid URL (e.g. https://swiggy.com)'); return; }
 
@@ -33,7 +30,6 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ad_description: adDesc,
-          ad_image_url: adImageUrl,
           landing_page_url: lpUrl
         })
       });
@@ -62,32 +58,10 @@ export default function Home() {
 
       <div className={styles.card}>
         <label>Ad creative</label>
-        <p className={styles.sub}>Describe your ad OR paste an image URL</p>
-        <div className={styles.tabRow}>
-          <button className={`${styles.tab} ${activeTab === 'describe' ? styles.tabActive : ''}`} onClick={() => setActiveTab('describe')}>Describe ad</button>
-          <button className={`${styles.tab} ${activeTab === 'image' ? styles.tabActive : ''}`} onClick={() => setActiveTab('image')}>Image URL</button>
-          <button className={`${styles.tab} ${activeTab === 'both' ? styles.tabActive : ''}`} onClick={() => setActiveTab('both')}>Both</button>
-        </div>
-
-        {(activeTab === 'describe' || activeTab === 'both') && (
-          <textarea rows={4} value={adDesc} onChange={e => setAdDesc(e.target.value)}
-            placeholder="e.g. Apple iPhone 16 Pro ad - cinematic black background, close-up of camera lens. Headline: Think Different. Shoot Different. Bold minimalist tone targeting creative professionals. CTA: Order Now."
-            style={{marginBottom: activeTab === 'both' ? '12px' : '0'}}
-          />
-        )}
-
-        {(activeTab === 'image' || activeTab === 'both') && (
-          <div>
-            <input type="text" value={adImageUrl} onChange={e => { setAdImageUrl(e.target.value); setImageError(false); }}
-              placeholder="https://example.com/ad-image.jpg" />
-            {adImageUrl && !imageError && (
-              <div className={styles.imagePreview}>
-                <img src={adImageUrl} alt="Ad preview" onError={() => setImageError(true)} />
-              </div>
-            )}
-            {imageError && <p className={styles.imageError}>Could not load image — check the URL</p>}
-          </div>
-        )}
+        <p className={styles.sub}>Describe your ad — headline, tone, visuals, CTA, audience</p>
+        <textarea rows={4} value={adDesc} onChange={e => setAdDesc(e.target.value)}
+          placeholder="e.g. Spotify ad with vibrant colorful visuals, people dancing. Headline: Music for Every Moment. Fun energetic tone targeting Gen Z aged 18-30. CTA: Start Listening Free."
+        />
       </div>
 
       <div className={styles.card}>
