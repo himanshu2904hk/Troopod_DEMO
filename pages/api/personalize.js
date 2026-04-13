@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
+  
   const { ad_description, landing_page_url } = req.body;
   if (!ad_description || !landing_page_url) {
     return res.status(400).json({ error: 'Missing fields' });
