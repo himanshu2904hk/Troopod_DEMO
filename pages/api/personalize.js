@@ -81,14 +81,14 @@ function enhanceRealPage(html, copy, baseUrl) {
     .replace(/href="\//g, `href="${baseUrl}/`)
     .replace(/src='\//g, `src='${baseUrl}/`)
     .replace(/href='\//g, `href='${baseUrl}/`)
-    .replace(/url\(\/g, `url(${baseUrl}/`);
+    .replace(/url\(\//g, 'url(' + baseUrl + '/');
 
   // Step 3: Update <title>
   const titleRegex = new RegExp('<title[^>]*>[\s\S]*?<\/title>', 'i');
   enhanced = enhanced.replace(titleRegex, '<title>' + (brandName || 'Personalized Page') + '</title>');
 
   // Step 4: Update meta description
-  const metaRegex = new RegExp('<meta[^>]*name=["']description["'][^>]*>', 'i');
+  const metaRegex = /<meta[^>]*name=["']description["'][^>]*>/i;
   enhanced = enhanced.replace(metaRegex, '<meta name="description" content="' + (tagline || sub || '') + '">');
 
   // Step 5: Replace first <h1> content
@@ -122,11 +122,13 @@ function enhanceRealPage(html, copy, baseUrl) {
   }
 
   // Step 8: Add personalization banner
-  const banner = `<div style="position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#7F77DD;color:white;text-align:center;padding:10px 16px;font-family:sans-serif;font-size:13px;font-weight:500;">
-    ✨ Personalized by Troopod AI — copy rewritten to match your ad creative
-    <span style="margin-left:16px;opacity:0.8;font-size:11px;">Original: ${baseUrl}</span>
-  </div>`;
-  enhanced = enhanced.replace('</body>', `${banner}</body>`);
+  const bannerStyle = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#7F77DD;color:white;text-align:center;padding:10px 16px;font-family:sans-serif;font-size:13px;font-weight:500;';
+  const spanStyle = 'margin-left:16px;opacity:0.8;font-size:11px;';
+  const banner = '<div style="' + bannerStyle + '">' +
+    '✨ Personalized by Troopod AI — copy rewritten to match your ad creative' +
+    '<span style="' + spanStyle + '">Original: ' + baseUrl + '</span>' +
+    '</div>';
+  enhanced = enhanced.replace('</body>', banner + '</body>');
 
   return enhanced;
 }
