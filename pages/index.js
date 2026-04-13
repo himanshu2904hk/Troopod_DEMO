@@ -147,26 +147,39 @@ export default function Home() {
           )}
 
           <div className={styles.section}>
-            <h2>Personalized landing page</h2>
-            {!result.fetch_success && (
-              <p className={styles.assumption}>Note: Original page blocked scraping — generated high-fidelity brand mockup, then personalized it.</p>
-            )}
-            <div className={styles.iframeCol}>
-              <div className={`${styles.iframeLabel} ${styles.persLabel}`} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span>
-                  {result.enhanced
-                    ? '✅ Real page enhanced — original layout preserved, copy personalized'
-                    : '🎨 AI-generated mockup — original page blocked scraping'}
-                </span>
-                <button onClick={() => {
-                  const blob = new Blob([result.personalized_html], {type: 'text/html'});
-                  const url = URL.createObjectURL(blob);
-                  window.open(url, '_blank');
-                }} style={{fontSize:'11px',padding:'3px 10px',background:'#3C3489',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'}}>
-                  Open full screen ↗
-                </button>
+            <h2>Side-by-side comparison</h2>
+            <div className={styles.sideBySide}>
+              <div className={styles.iframeCol}>
+                <div className={styles.iframeLabel}>
+                  Original — {lpUrl}
+                </div>
+                <iframe
+                  src={lpUrl}
+                  className={styles.iframe}
+                  title="Original"
+                  sandbox="allow-scripts allow-same-origin"
+                  style={{height:'700px'}}
+                />
               </div>
-              <iframe srcDoc={result.personalized_html} className={styles.iframe} title="Personalized" sandbox="allow-scripts" style={{height:'700px'}} />
+              <div className={styles.iframeCol}>
+                <div className={`${styles.iframeLabel} ${styles.persLabel}`} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>✨ Personalized — matched to your ad</span>
+                  <button onClick={() => {
+                    const blob = new Blob([result.personalized_html], {type: 'text/html'});
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                  }} style={{fontSize:'11px',padding:'3px 10px',background:'#3C3489',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'}}>
+                    Open full screen ↗
+                  </button>
+                </div>
+                <iframe
+                  srcDoc={result.personalized_html}
+                  className={styles.iframe}
+                  title="Personalized"
+                  sandbox="allow-scripts"
+                  style={{height:'700px'}}
+                />
+              </div>
             </div>
           </div>
 
