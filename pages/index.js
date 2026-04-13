@@ -153,7 +153,11 @@ export default function Home() {
             )}
             <div className={styles.iframeCol}>
               <div className={`${styles.iframeLabel} ${styles.persLabel}`} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span>Personalized version of {lpUrl}</span>
+                <span>
+                  {result.enhanced
+                    ? '✅ Real page enhanced — original layout preserved, copy personalized'
+                    : '🎨 AI-generated mockup — original page blocked scraping'}
+                </span>
                 <button onClick={() => {
                   const blob = new Blob([result.personalized_html], {type: 'text/html'});
                   const url = URL.createObjectURL(blob);
