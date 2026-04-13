@@ -45,3 +45,5 @@
 .changesTitle { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 8px; }
 .change { font-size: 12px; color: #666; margin-bottom: 5px; }
 .assumption { font-size: 12px; color: #854F0B; background: #FAEEDA; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; }
+
+.sideBySide { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
