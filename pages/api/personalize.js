@@ -84,55 +84,41 @@ function enhanceRealPage(html, copy, baseUrl) {
     .replace(/url\(\/g, `url(${baseUrl}/`);
 
   // Step 3: Update <title>
-  enhanced = enhanced.replace(
-    /<title[^>]*>[\s\S]*?<\/title>/i,
-    `<title>${brandName || 'Personalized Page'}</title>`
-  );
+  const titleRegex = new RegExp('<title[^>]*>[\s\S]*?<\/title>', 'i');
+  enhanced = enhanced.replace(titleRegex, '<title>' + (brandName || 'Personalized Page') + '</title>');
 
   // Step 4: Update meta description
-  enhanced = enhanced.replace(
-    /<meta[^>]*name=["']description["'][^>]*>/i,
-    `<meta name="description" content="${tagline || sub || ''}">`
-  );
+  const metaRegex = new RegExp('<meta[^>]*name=["']description["'][^>]*>', 'i');
+  enhanced = enhanced.replace(metaRegex, '<meta name="description" content="' + (tagline || sub || '') + '">');
 
   // Step 5: Replace first <h1> content
-  enhanced = enhanced.replace(
-    /(<h1[^>]*>)([\s\S]*?)(<\/h1>)/i,
-    `$1${headline || ''}$3`
-  );
+  const h1Regex = new RegExp('(<h1[^>]*>)([\s\S]*?)(<\/h1>)', 'i');
+  enhanced = enhanced.replace(h1Regex, '$1' + (headline || '') + '$3');
 
   // Step 6: Replace first 2 <h2> contents
   let h2Count = 0;
-  enhanced = enhanced.replace(
-    /(<h2[^>]*>)([\s\S]*?)(<\/h2>)/gi,
-    (match, open, inner, close) => {
-      h2Count++;
-      if (h2Count === 1) return `${open}${sub || inner}${close}`;
-      if (h2Count === 2) return `${open}${tagline || inner}${close}`;
-      return match;
-    }
-  );
+  const h2Regex = new RegExp('(<h2[^>]*>)([\s\S]*?)(<\/h2>)', 'gi');
+  enhanced = enhanced.replace(h2Regex, (match, open, inner, close) => {
+    h2Count++;
+    if (h2Count === 1) return open + (sub || inner) + close;
+    if (h2Count === 2) return open + (tagline || inner) + close;
+    return match;
+  });
 
-  // Step 7: Replace CTA buttons — look for common CTA patterns
+  // Step 7: Replace CTA buttons
   if (cta) {
-    // Replace first <button> that looks like a CTA
     let btnCount = 0;
-    enhanced = enhanced.replace(
-      /(<button[^>]*>)([\s\S]*?)(<\/button>)/gi,
-      (match, open, inner, close) => {
-        if (btnCount === 0 && inner.trim().length < 50) {
-          btnCount++;
-          return `${open}${cta}${close}`;
-        }
-        return match;
+    const btnRegex = new RegExp('(<button[^>]*>)([\s\S]*?)(<\/button>)', 'gi');
+    enhanced = enhanced.replace(btnRegex, (match, open, inner, close) => {
+      if (btnCount === 0 && inner.trim().length < 50) {
+        btnCount++;
+        return open + cta + close;
       }
-    );
+      return match;
+    });
 
-    // Also replace first <a> that has CTA-like classes
-    enhanced = enhanced.replace(
-      /(<a[^>]*(?:btn|cta|button|primary)[^>]*>)([\s\S]*?)(<\/a>)/i,
-      `$1${cta}$3`
-    );
+    const ctaRegex = new RegExp('(<a[^>]*(?:btn|cta|button|primary)[^>]*>)([\s\S]*?)(<\/a>)', 'i');
+    enhanced = enhanced.replace(ctaRegex, '$1' + cta + '$3');
   }
 
   // Step 8: Add personalization banner
